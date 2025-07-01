@@ -134,8 +134,9 @@ struct Node_s *find_range(struct Node_s *current, void *data) {
     struct Node_s *range = current;
 
     // If 2 marker nodes are next to each other there has been no inserts yet.
-    if (get_type(range->below->data) == INT_D &&
-        get_type(range->next->below->data) == STR_D) {
+    // only marker data nodes have non NULL above nodes. This will let us know
+    // if 2 markers are next to each other and the range is empty
+    if (range->below->above != NULL && range->next->below->above != NULL) {
         return range;
     }
 
@@ -229,13 +230,12 @@ struct Node_s *insert(struct Node_s *root, void *data) {
         return NULL;
     }
 
-    uint8_t data_type = get_type(data);
-    struct Node_s *current = root;
     // Iterate through the sentinels until we
     // find the appropriate data type
     // If we reach back to the head the loop ends
+    struct Node_s *current = root;
     do {
-        if (get_type(current->below->data) == data_type) break;
+        if (get_type(current->below->data) == get_type(data)) break;
 
         current = current->next;
     } while (get_type(current->below->data) != HEAD_N);
@@ -246,7 +246,7 @@ struct Node_s *insert(struct Node_s *root, void *data) {
         return NULL;
     }
     // Handle if the range is full
-    if (get_size(current->below) > NODE_COUNT) {
+    if (get_size(current->below->data) > NODE_COUNT) {
         current = insert_marker(current);
         if (!error_check(current, "Error insert(): insert_marker() failed\n")) {
             return NULL;
