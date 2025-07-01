@@ -246,9 +246,7 @@ struct Node_s *insert(struct Node_s *root, void *data) {
         return NULL;
     }
 
-    // Iterate through the sentinels until we
-    // find the appropriate data type
-    // If we reach back to the head the loop ends
+    // Get the sentinel node at the start of the type section
     struct Node_s *current = find_type(root, data);
     if (!error_check(current, "Error insert(): find_type() failed.\n")) {
         return NULL;
@@ -266,7 +264,7 @@ struct Node_s *insert(struct Node_s *root, void *data) {
             return NULL;
         }
         // insert_marker() returns a pointer to the new sentinel for the marker
-        // Since the range split we need to move back on sentinel then check
+        // Since the range split we need to move back one sentinel then check
         // if it's in the first or second section of the split
         current = current->prev;
         current = find_range(current, data);
