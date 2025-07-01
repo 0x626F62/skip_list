@@ -126,6 +126,22 @@ struct Node_s *init_list() {
     return head_s;
 }
 
+struct Node_s *find_type(struct Node_s *root, void *data) {
+    struct Node_s *current = root;
+    do {
+        if (get_type(current->below->data) == get_type(data)) break;
+
+        current = current->next;
+    } while (get_type(current->below->data) != HEAD_N);
+
+    if (get_type(current->below->data) == HEAD_N) {
+        fprintf(stderr, "Error find_type(): Couldn't find type.\n");
+        return NULL;
+    }
+
+    return current;
+}
+
 // Called from insert() *current points to the marker node at the start of
 // the type section.
 // iterate through the sentinel list to find the marker node before the range
@@ -233,12 +249,10 @@ struct Node_s *insert(struct Node_s *root, void *data) {
     // Iterate through the sentinels until we
     // find the appropriate data type
     // If we reach back to the head the loop ends
-    struct Node_s *current = root;
-    do {
-        if (get_type(current->below->data) == get_type(data)) break;
-
-        current = current->next;
-    } while (get_type(current->below->data) != HEAD_N);
+    struct Node_s *current = find_type(root, data);
+    if (!error_check(current, "Error insert(): find_type() failed.\n")) {
+        return NULL;
+    }
 
     // Get a pointer to the sentinel at the start of our range to insert
     current = find_range(current, data);
