@@ -126,10 +126,51 @@ struct Node_s *init_list() {
     return head_s;
 }
 
-// Used to traverse the list of sentinels and find the closest to insert point
-// If our range has reached NODE_COUNT insert a marker in the middle.
-// I think this will eliminate to move data nodes?
-struct Node_s *find_range(struct Node_s *root) { return root; }
+// Called from insert() *current points to the marker node at the start of
+// the type section.
+// iterate through the sentinel list to find the marker node before the range
+// the node needs to be inserted in.
+struct Node_s *find_range(struct Node_s *current, void *data) {
+    struct Node_s *range = current;
+
+    // If 2 marker nodes are next to each other there has been no inserts yet.
+    if (get_type(range->below->data) == INT_D &&
+        get_type(range->next->below->data) == STR_D) {
+        return range;
+    }
+
+    while (get_type(range->below->data) == get_type(data) &&
+           get_type(range->below->data) != HEAD_N) {
+        switch (get_type(data)) {
+            case INT_D:  // if data >= first_n and data < last_n correct range
+                if (*((int *)clear_params(data)) >
+                        *((int *)clear_params(range->below->next->data)) &&
+                    *((int *)clear_params(data)) <
+                        *((int *)clear_params(  // clang-format =|
+                            range->next->below->prev
+                                ->data))) {  // should probably read the docs
+                    return range;
+                }
+                break;
+
+            case STR_D:
+                if (strcmp(((char *)clear_params(data)),
+                           ((char *)clear_params(range->below->next->data))) >=
+                        0 &&
+                    strcmp(((char *)clear_params(data)),
+                           ((char *)clear_params(
+                               range->next->below->prev->data))) < 0) {
+                    return range;
+                }
+                break;
+
+            default:
+                fprintf(stderr, "Error find_range(): invalid type.\n");
+                return NULL;
+        }
+    }
+    return range;  // Should never reach here.
+}
 
 // Insert a new sentinel/marker node pair
 // Called from insert() not to be called on its own. Starts from the current
@@ -180,8 +221,8 @@ struct Node_s *insert_marker(struct Node_s *current) {
 }
 
 // Insert a node to the list.
-struct Node_s *insert(struct Node_s **root, void *data) {
-    if (!error_check((*root), "Error insert(): root null\n")) {
+struct Node_s *insert(struct Node_s *root, void *data) {
+    if (!error_check(root, "Error insert(): root null\n")) {
         return NULL;
     }
     if (!error_check(data, "Error insert(): data null\n")) {
@@ -189,7 +230,7 @@ struct Node_s *insert(struct Node_s **root, void *data) {
     }
 
     uint8_t data_type = get_type(data);
-    struct Node_s *current = *root;
+    struct Node_s *current = root;
     // Iterate through the sentinels until we
     // find the appropriate data type
     // If we reach back to the head the loop ends
@@ -199,24 +240,38 @@ struct Node_s *insert(struct Node_s **root, void *data) {
         current = current->next;
     } while (get_type(current->below->data) != HEAD_N);
 
-    // curr_data_n is our tagged pointer to our marker node
-    struct Node *curr_data_n = current->below;
-    struct Node *new_n = new_node();  // Build our new node before insert
-    if (!error_check(new_n, "Error insert(): new_node() failed.\n")) {
-        fprintf(stderr, "Error insert(): new_node() failed. Freeing data.\n");
-        free(clear_params(data));
+    // Get a pointer to the sentinel at the start of our range to insert
+    current = find_range(current, data);
+    if (!error_check(current, "Error insert(): find_range() failed.\n")) {
         return NULL;
     }
-    new_n->data = data;
+    // Handle if the range is full
+    if (get_size(current->below) > NODE_COUNT) {
+        current = insert_marker(current);
+        if (!error_check(current, "Error insert(): insert_marker() failed\n")) {
+            return NULL;
+        }
+        // insert_marker() returns a pointer to the new sentinel for the marker
+        // Since the range split we need to move back on sentinel then check
+        // if it's in the first or second section of the split
+        current = current->prev;
+        current = find_range(current, data);
+        if (!error_check(current, "Error insert(): find_range() failed\n")) {
+            return NULL;
+        }
+    }
+    // curr_data_n is our pointer to our marker node
+    struct Node *curr_data_n = current->below;
 
     switch (get_type(curr_data_n->data)) {  // Should be at the marker
         case STR_D:
+
             // Loop until a marker is found and new node string > current string
             // Marker nodes will have an *above linked to a sentinel above. As
             // the list grows and sentinels are added we will know we're at the
             // end of a range.
             while (curr_data_n->next->above == NULL &&
-                   strcmp((char *)clear_params(new_n->data),
+                   strcmp((char *)clear_params(data),
                           (char *)clear_params(curr_data_n->next->data)) > 0) {
                 curr_data_n = curr_data_n->next;
             }
@@ -225,7 +280,7 @@ struct Node_s *insert(struct Node_s **root, void *data) {
         case INT_D:
             // Basically same as above except ints
             while (curr_data_n->next->above == NULL &&
-                   *((int *)clear_params(new_n->data)) >
+                   *((int *)clear_params(data)) >
                        *((int *)clear_params(curr_data_n->next->data))) {
                 curr_data_n = curr_data_n->next;
             }
@@ -235,6 +290,15 @@ struct Node_s *insert(struct Node_s **root, void *data) {
             fprintf(stderr, "Error insert(): Invalid type.\n");
             return NULL;
     }
+
+    // Create a new node
+    struct Node *new_n = new_node();
+    if (!error_check(new_n, "Error insert(): new_node() failed.\n")) {
+        fprintf(stderr, "Error insert(): new_node() failed. Freeing data.\n");
+        free(clear_params(data));
+        return NULL;
+    }
+    new_n->data = data;
 
     // Update the count for our sentinel
     uint16_t count = get_size(current->below->data);
@@ -248,7 +312,7 @@ struct Node_s *insert(struct Node_s **root, void *data) {
     curr_data_n->next = new_n;
     curr_data_n->next->prev = new_n;
 
-    return *root;  // We always want to track our head sentinel node.
+    return root;  // We always want to track our head sentinel node.
 }
 
 // Print our list. Each data pointer has embedded meta data so handle
