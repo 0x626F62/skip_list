@@ -6,20 +6,22 @@
 #include "tagged_ptr.h"
 
 // Type Definitions
-#define HEAD_N 1      // Mark the "head/tail" (it's circular)
-#define STR_MARKER 2  // Mark the start of str section
-#define INT_MARKER 3  // Mark the start of int section
-#define STR_D 4       // string data node
-#define INT_D 5       // int data node
+#define HEAD_N 1  // Mark the "head/tail" (it's circular)
+#define STR_D 2   // string data node
+#define INT_D 3   // int data node
+
+// Interval to insert a new marker pair
+#define NODE_COUNT 30
 
 struct Node_s {
     struct Node_s *next;
     struct Node_s *prev;
-    struct Node *below;  // Tagged type/node_count
+    struct Node *below;
 };
 
 struct Node {
-    void *data;  // Tagged type/size
+    void *data;            // Tagged type/size
+    struct Node_s *above;  // If it's linked to a sentinel it's a marker
     struct Node *prev;
     struct Node *next;
 };
@@ -38,6 +40,7 @@ struct Node *new_node() {
     if (!error_check(node_n, "Error new_node(): malloc() failed\n")) {
         return NULL;
     }
+    node_n->above = NULL;
     node_n->prev = node_n->next = node_n->data = NULL;
 
     return node_n;
@@ -49,7 +52,6 @@ struct Node_s *new_sentinel() {
     if (!error_check(node_s, "Error new_sentinel(): malloc() failed\n")) {
         return NULL;
     }
-
     node_s->below = NULL;
     node_s->prev = node_s->next = NULL;
     return node_s;
@@ -94,29 +96,24 @@ struct Node_s *init_list() {
     int_s->prev = str_s;
 
     // Link data nodes circularly
+    head_n->above = head_s;
     head_n->next = str_n;
     head_n->prev = int_n;
 
+    str_n->above = str_s;
     str_n->next = int_n;
     str_n->prev = head_n;
 
+    int_n->above = int_s;
     int_n->next = head_n;
     int_n->prev = str_n;
 
-    // set_params()
-    head_s->below = set_params(head_s->below, HEAD_N, 0);
-    str_s->below = set_params(str_s->below, STR_MARKER, 0);
-    int_s->below = set_params(int_s->below, INT_MARKER, 0);
-
     head_n->data = set_params(head_n->data, HEAD_N, 0);
-    str_n->data = set_params(str_n->data, STR_MARKER, 0);
-    int_n->data = set_params(int_n->data, INT_MARKER, 0);
+    str_n->data = set_params(str_n->data, STR_D, 0);
+    int_n->data = set_params(int_n->data, INT_D, 0);
 
-    if (get_type(head_s->below) != HEAD_N || get_type(head_n->data) != HEAD_N ||
-        get_type(str_s->below) != STR_MARKER ||
-        get_type(str_n->data) != STR_MARKER ||
-        get_type(int_s->below) != INT_MARKER ||
-        get_type(int_n->data) != INT_MARKER) {
+    if (get_type(head_n->data) != HEAD_N || get_type(str_n->data) != STR_D ||
+        get_type(int_n->data) != INT_D) {
         fprintf(stderr, "Error init_list(): set_params() failed\n");
         free(head_n);
         free(str_n);
@@ -130,7 +127,57 @@ struct Node_s *init_list() {
 }
 
 // Used to traverse the list of sentinels and find the closest to insert point
-struct Node_s *find_range(struct Node_s **root) { return *root; }
+// If our range has reached NODE_COUNT insert a marker in the middle.
+// I think this will eliminate to move data nodes?
+struct Node_s *find_range(struct Node_s *root) { return root; }
+
+// Insert a new sentinel/marker node pair
+// Called from insert() not to be called on its own. Starts from the current
+// sentinel node before the range that the data node needs to be inserted in
+struct Node_s *insert_marker(struct Node_s *current) {
+    struct Node_s *new_s = malloc(sizeof(struct Node_s));
+    struct Node *new_n = malloc(sizeof(struct Node));
+    if (!error_check(new_n, "Error insert_marker(): malloc() failed.\n") ||
+        !error_check(new_s, "Error insert_marker(): malloc() failed.\n")) {
+        free(new_n);
+        free(new_s);
+        return NULL;
+    }
+
+    // Find the middle node in the chunk
+    struct Node *mid_node = current->below;
+    for (int i = 0;
+         i <= get_size(current->below->data) / 2 && mid_node->above == NULL;
+         i++)
+        mid_node = mid_node->next;
+
+    new_n->data = set_params(new_n->data, get_type(current->below->data), 0);
+    new_n->above = new_s;
+    new_n->prev = mid_node;
+    new_n->next = mid_node->next;
+    mid_node->next->prev = new_n;
+    mid_node->next = new_n;
+
+    new_s->next = current->next;
+    new_s->prev = current;
+    new_s->below = new_n;
+    current->next->prev = new_s;
+    current->next = new_s;
+
+    uint16_t splt_sz1 = 0, splt_sz2 = 0;
+    splt_sz1 = splt_sz2 = NODE_COUNT / 2;
+    // In case NODE_COUNT is odd we want to account for the 1 extra
+    if (get_size(current->below->data) % 2) {
+        splt_sz1 = get_size(current->below->data) / 2;
+        splt_sz2 = splt_sz1 + 1;
+    }
+    current->below->data = set_params(current->below->data,
+                                      get_type(current->below->data), splt_sz1);
+    new_n->data =
+        set_params(new_n->data, get_type(current->below->data), splt_sz2);
+
+    return current;
+}
 
 // Insert a node to the list.
 struct Node_s *insert(struct Node_s **root, void *data) {
@@ -143,36 +190,71 @@ struct Node_s *insert(struct Node_s **root, void *data) {
 
     uint8_t data_type = get_type(data);
     struct Node_s *current = *root;
+    // Iterate through the sentinels until we
+    // find the appropriate data type
+    // If we reach back to the head the loop ends
     do {
-        if (get_type(current->below) == data_type) break;
+        if (get_type(current->below->data) == data_type) break;
 
         current = current->next;
-    } while (get_type(current->below) != HEAD_N);
+    } while (get_type(current->below->data) != HEAD_N);
 
-    struct Node *new_n = NULL;
-    switch (get_type(current->below)) {
-        case STR_MARKER:
-            if (clear_params(current->below->next->data) != NULL) {
-                int res = strcmp(clear_params(data),
-                                 clear_params(current->below->next->data));
+    // curr_data_n is our tagged pointer to our marker node
+    struct Node *curr_data_n = current->below;
+    struct Node *new_n = new_node();  // Build our new node before insert
+    if (!error_check(new_n, "Error insert(): new_node() failed.\n")) {
+        fprintf(stderr, "Error insert(): new_node() failed. Freeing data.\n");
+        free(clear_params(data));
+        return NULL;
+    }
+    new_n->data = data;
+
+    switch (get_type(curr_data_n->data)) {  // Should be at the marker
+        case STR_D:
+            // Loop until a marker is found and new node string > current string
+            // Marker nodes will have an *above linked to a sentinel above. As
+            // the list grows and sentinels are added we will know we're at the
+            // end of a range.
+            while (curr_data_n->next->above == NULL &&
+                   strcmp((char *)clear_params(new_n->data),
+                          (char *)clear_params(curr_data_n->next->data)) > 0) {
+                curr_data_n = curr_data_n->next;
             }
             break;
 
-        case INT_MARKER:
-            // handle int
+        case INT_D:
+            // Basically same as above except ints
+            while (curr_data_n->next->above == NULL &&
+                   *((int *)clear_params(new_n->data)) >
+                       *((int *)clear_params(curr_data_n->next->data))) {
+                curr_data_n = curr_data_n->next;
+            }
             break;
 
         default:
             fprintf(stderr, "Error insert(): Invalid type.\n");
             return NULL;
     }
-    return current;  // this might change we'll see how the logic plays out
+
+    // Update the count for our sentinel
+    uint16_t count = get_size(current->below->data);
+    current->below->data =
+        set_params(current->below->data, get_type(new_n->data), ++count);
+
+    // Update pointers to insert new node
+    new_n->prev = curr_data_n;
+    new_n->next = curr_data_n->next;
+
+    curr_data_n->next = new_n;
+    curr_data_n->next->prev = new_n;
+
+    return *root;  // We always want to track our head sentinel node.
 }
 
 // Print our list. Each data pointer has embedded meta data so handle
-// accordingly
-void print_list(struct Node *root) {
-    if (root == NULL || root->data == NULL || get_type(root->data) != HEAD_N) {
+// accordingly -- Old needs updated
+void print_list(struct Node_s *root) {
+    if (root == NULL || root->type != HEAD_N) {
         fprintf(stderr, "Error print_list() not a valid head\n");
         return;
     }
@@ -186,12 +268,12 @@ void print_list(struct Node *root) {
         uint16_t size = get_size(current->data);
 
         switch (type) {
-            case STRING:
+            case STR_D:
                 printf("str: %.*s\n", size,
                        (char *)clear_params(current->data));
                 break;
 
-            case INT:
+            case INT_D:
                 printf("int: %i\n", *(int *)clear_params(current->data));
                 break;
             default:
@@ -203,6 +285,7 @@ void print_list(struct Node *root) {
 }
 
 // Free memory occupied by the list
+// Old needs updated
 void free_list(struct Node **root) {
     struct Node *current = *root;
     struct Node *next = current->next;
