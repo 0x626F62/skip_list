@@ -9,7 +9,7 @@
 // If larger than the next node
 uint8_t compare_str(struct Node *marker, void *data) {
     if (strcmp((char *)clear_params(data),
-               (char *)clear_params(marker->next->data)) > 0) {
+               (char *)clear_params(marker->next->data)) < 0) {
         return 1;
     }
     return 0;
@@ -17,7 +17,7 @@ uint8_t compare_str(struct Node *marker, void *data) {
 
 // if larger than next node
 uint8_t compare_int(struct Node *marker, void *data) {
-    if (*((int *)clear_params(data)) >
+    if (*((int *)clear_params(data)) <
         *((int *)clear_params(marker->next->data))) {
         return 1;
     }
@@ -27,9 +27,9 @@ uint8_t compare_int(struct Node *marker, void *data) {
 
 // Functions for comparisons to find ranges
 // strcmp() > 0 first string larger 0 == equal < 0 less than
-// first condition checks if it fits between the first and last node
-// second is if it fits before the first node
-// third is if it is needs to go in the last place (greatest value)
+// first condition checks if it fits between the first and first node
+// of next range
+// else if beginning of range
 uint8_t str_cmp_range(struct Node_s *marker, void *data) {
     if (strcmp(((char *)clear_params(data)),
                ((char *)clear_params(marker->below->next->data))) >= 0 &&
@@ -43,7 +43,7 @@ uint8_t str_cmp_range(struct Node_s *marker, void *data) {
     return 0;
 }
 
-// if start < x < end || x < start
+// if start < x < start of next || x < start
 uint8_t int_cmp_range(struct Node_s *marker, void *data) {
     if (*((int *)clear_params(data)) >=
             *((int *)clear_params(marker->below->next->data)) &&

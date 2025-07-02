@@ -266,34 +266,24 @@ struct Node_s *insert(struct Node_s *root, void *data) {
     // curr_data_n is our pointer to our marker node
     struct Node *curr_data_n = current->below;
 
-    switch (get_type(curr_data_n->data)) {
-        case STR_D:
-
-            // Loop until a marker is found and new node string > current string
-            // Marker nodes will have an *above linked to a sentinel above. As
-            // the list grows and sentinels are added we will know we're at the
-            // end of a range.
-            while (curr_data_n->next->above == NULL &&
-                   strcmp((char *)clear_params(data),
-                          (char *)clear_params(curr_data_n->next->data)) > 0) {
-                curr_data_n = curr_data_n->next;
-            }
-            break;
-
-        case INT_D:
-            // Basically same as above except ints
-            while (curr_data_n->next->above == NULL &&
-                   *((int *)clear_params(data)) >
-                       *((int *)clear_params(curr_data_n->next->data))) {
-                curr_data_n = curr_data_n->next;
-            }
-            break;
-
-        default:
-            fprintf(stderr, "Error insert(): Invalid type.\n");
-            return NULL;
+    // match our type and determine appropriate spot the insert
+    uint8_t type_index = TYPE_COUNT;
+    for (int i = 0; i < TYPE_COUNT; i++) {
+        if (node_checks[i].type == get_type(data)) {
+            type_index = i;
+        }
     }
-
+    if (type_index == TYPE_COUNT) {
+        fprintf(stderr, "Error insert(): No type match\n");
+        return NULL;
+    }
+    // Matched our type now iterate until we find the proper spot to insert.
+    while (clear_params(curr_data_n->next->above) == NULL) {
+        if (node_checks[type_index].cmp_func(curr_data_n, data)) {
+            break;  // we're on the node we want to insert after
+        }
+        curr_data_n = curr_data_n->next;
+    }
     // Create a new node
     struct Node *new_n = new_node();
     if (!error_check(new_n, "Error insert(): new_node() failed.\n")) {
