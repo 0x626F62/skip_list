@@ -155,20 +155,25 @@ struct Node_s *find_range(struct Node_s *current, void *data) {
         return NULL;
     }
 
+    // while the type matches at the start and end of range loop
+    // if it hits a different type loop stops
     while (get_type(range->below->data) == get_type(data) &&
-           get_type(range->below->data) != HEAD_N &&
            get_type(range->next->below->data) == get_type(data)) {
+        // if the cmp_func has a match it'll return 1
         if (range_checks[type_index].cmp_func(range, data) &&
             get_type(range->below->data) == get_type(data)) {
             return range;
         }
     }
+    // if range is set to something other than our data type
+    // something was missed in the comparison func.
     if (get_type(range->below->data) == HEAD_N ||
         get_type(range->below->data) != get_type(data)) {
         fprintf(stderr, "Error find_range(): Something broke.\n");
         return NULL;
     }
 
+    // there is only one range
     return range;
 }
 
