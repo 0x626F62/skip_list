@@ -37,6 +37,7 @@ uint8_t str_cmp_range(struct Node_s *marker, void *data) {
     return 0;
 }
 
+// if start < x < end || x < start || end < x && next != type
 uint8_t int_cmp_range(struct Node_s *marker, void *data) {
     if (*((int *)clear_params(data)) >
             *((int *)clear_params(marker->below->next->data)) &&
