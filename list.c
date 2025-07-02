@@ -1,30 +1,12 @@
+#include "list.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "compare_funcs.h"
 #include "tagged_ptr.h"
-
-// Type Definitions
-#define HEAD_N 1  // Mark the "head/tail" (it's circular)
-#define STR_D 2   // string data node
-#define INT_D 3   // int data node
-
-// Interval to insert a new marker pair
-#define NODE_COUNT 30
-
-struct Node_s {
-    struct Node_s *next;
-    struct Node_s *prev;
-    struct Node *below;
-};
-
-struct Node {
-    void *data;            // Tagged type/size
-    struct Node_s *above;  // If it's linked to a sentinel it's a marker
-    struct Node *prev;
-    struct Node *next;
-};
 
 uint8_t error_check(void *ptr, const char *msg) {
     if (ptr == NULL) {
@@ -146,7 +128,12 @@ struct Node_s *find_type(struct Node_s *root, void *data) {
 // the type section.
 // iterate through the sentinel list to find the marker node before the range
 // the node needs to be inserted in.
+// Refining the comparison helper functions and working out edge cases.
 struct Node_s *find_range(struct Node_s *current, void *data) {
+    if (!error_check(current, "Error find_range(): current NULL.\n") ||
+        !error_check(clear_params(data), "Error find_range(): data NULL.\n")) {
+        return NULL;
+    }
     struct Node_s *range = current;
 
     // If 2 marker nodes are next to each other there has been no inserts yet.
@@ -156,37 +143,32 @@ struct Node_s *find_range(struct Node_s *current, void *data) {
         return range;
     }
 
-    while (get_type(range->below->data) == get_type(data) &&
-           get_type(range->below->data) != HEAD_N) {
-        switch (get_type(data)) {
-            case INT_D:  // if data >= first_n and data < last_n correct range
-                if (*((int *)clear_params(data)) >
-                        *((int *)clear_params(range->below->next->data)) &&
-                    *((int *)clear_params(data)) <
-                        *((int *)clear_params(  // clang-format =|
-                            range->next->below->prev
-                                ->data))) {  // should probably read the docs
-                    return range;
-                }
-                break;
-
-            case STR_D:
-                if (strcmp(((char *)clear_params(data)),
-                           ((char *)clear_params(range->below->next->data))) >=
-                        0 &&
-                    strcmp(((char *)clear_params(data)),
-                           ((char *)clear_params(
-                               range->next->below->prev->data))) < 0) {
-                    return range;
-                }
-                break;
-
-            default:
-                fprintf(stderr, "Error find_range(): invalid type.\n");
-                return NULL;
+    uint8_t type_index = TYPE_COUNT;
+    for (int i = 0; i < TYPE_COUNT; i++) {
+        if (range_checks[i].type == get_type(data)) {
+            type_index = i;
         }
     }
-    return range;  // Should never reach here.
+    if (type_index == TYPE_COUNT) {
+        fprintf(stderr, "Error find_range(): Type not found.\n");
+        return NULL;
+    }
+
+    while (get_type(range->below->data) == get_type(data) &&
+           get_type(range->below->data) != HEAD_N &&
+           get_type(range->next->below->data) == get_type(data)) {
+        if (range_checks[type_index].cmp_func(range, data) &&
+            get_type(range->below->data) == get_type(data)) {
+            return range;
+        }
+    }
+    if (get_type(range->below->data) == HEAD_N ||
+        get_type(range->below->data) != get_type(data)) {
+        fprintf(stderr, "Error find_range(): Something broke.\n");
+        return NULL;
+    }
+
+    return range;
 }
 
 // Insert a new sentinel/marker node pair
@@ -238,6 +220,8 @@ struct Node_s *insert_marker(struct Node_s *current) {
 }
 
 // Insert a node to the list.
+// Old logic for type detection hasn't been updated yet to use the
+// comparison functions.
 struct Node_s *insert(struct Node_s *root, void *data) {
     if (!error_check(root, "Error insert(): root null\n")) {
         return NULL;
@@ -275,7 +259,7 @@ struct Node_s *insert(struct Node_s *root, void *data) {
     // curr_data_n is our pointer to our marker node
     struct Node *curr_data_n = current->below;
 
-    switch (get_type(curr_data_n->data)) {  // Should be at the marker
+    switch (get_type(curr_data_n->data)) {
         case STR_D:
 
             // Loop until a marker is found and new node string > current string
