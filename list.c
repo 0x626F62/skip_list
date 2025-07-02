@@ -108,6 +108,7 @@ struct Node_s *init_list() {
     return head_s;
 }
 
+// Locate the start of the appropriate type ranges
 struct Node_s *find_type(struct Node_s *root, void *data) {
     struct Node_s *current = root;
     do {
