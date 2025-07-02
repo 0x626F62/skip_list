@@ -164,6 +164,7 @@ struct Node_s *find_range(struct Node_s *current, void *data) {
             get_type(range->below->data) == get_type(data)) {
             return range;
         }
+        range = range->next;
     }
     // if range is set to something other than our data type
     // something was missed in the comparison func.
