@@ -6,9 +6,9 @@
 // HEAD_N explicitly checked for
 #define TYPE_COUNT 2
 
-#define HEAD_N 1
-#define STR_D 2
-#define INT_D 3
+#define STR_D 0
+#define INT_D 1
+#define HEAD_N 2
 
 #define NODE_COUNT 30
 

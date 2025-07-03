@@ -1,6 +1,7 @@
 #include "helper_funcs.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "list.h"
@@ -58,12 +59,37 @@ uint8_t int_cmp_range(struct Node_s *marker, void *data) {
     return 0;
 }
 
+// Print out funcs
+void print_str(struct Node *node) {
+    if (get_type(node->data) != STR_D) {
+        fprintf(stderr, "Error print_str(): *data not a string\n");
+        return;
+    }
+    uint16_t size = get_size(node->data);
+    for (uint16_t i = 0; i < size; i++) {
+        char c = ((char *)clear_params(node->data))[i];
+        putchar(c);
+    }
+}
+
+void print_int(struct Node *node) {
+    if (get_type(node->data) != INT_D) {
+        fprintf(stderr, "Error print_int(): *data not an int\n");
+        return;
+    }
+
+    printf("*data: %i\n", *((int *)clear_params(node->data)));
+}
 // Update as needed to add more types
 // Compare to type then call the corresponding comparison function
-const struct Range_cmps range_checks[2] = {
+const struct Range_cmps range_checks[TYPE_COUNT] = {
     {.type = STR_D, .cmp_func = str_cmp_range},
     {.type = INT_D, .cmp_func = int_cmp_range}};
 
-const struct Node_cmps node_checks[2] = {
+const struct Node_cmps node_checks[TYPE_COUNT] = {
     {.type = STR_D, .cmp_func = compare_str},
     {.type = INT_D, .cmp_func = compare_int}};
+
+const struct Output_funcs out_funcs[TYPE_COUNT] = {
+    {.type = STR_D, .output_func = print_str},
+    {.type = INT_D, .output_func = print_int}};

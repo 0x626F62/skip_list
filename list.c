@@ -320,12 +320,15 @@ void print_list(struct Node_s *root) {
     }
     struct Node *current = root->below->next;
     while (get_type(current->next->data) != HEAD_N) {
-        if (!error_check(clear_params(current->data),
-                         "Error print_list(): data is NULL\n")) {
-            return;
+        if (current->above != NULL) {
+            printf("Marker Node\n");
+            continue;
         }
-        uint8_t type = get_type(current->data);
-        uint16_t size = get_size(current->data);
+        if (!error_check(current->data, "Marker Node\n")) {
+            uint8_t type = get_type(current->data);
+            out_funcs[type].output_func(current);
+        }
+        current = current->next;
     }
 }
 
