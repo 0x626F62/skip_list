@@ -65,6 +65,10 @@ void print_str(struct Node *node) {
         fprintf(stderr, "Error print_str(): *data not a string\n");
         return;
     }
+    if (!error_check(clear_params(node->data),
+                     "Error print_str(): data is null\n")) {
+        return;
+    }
     uint16_t size = get_size(node->data);
     for (uint16_t i = 0; i < size; i++) {
         char c = ((char *)clear_params(node->data))[i];
