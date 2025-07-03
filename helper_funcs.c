@@ -1,4 +1,4 @@
-#include "compare_funcs.h"
+#include "helper_funcs.h"
 
 #include <stdint.h>
 #include <string.h>

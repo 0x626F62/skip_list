@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "compare_funcs.h"
+#include "helper_funcs.h"
 #include "tagged_ptr.h"
 
 uint8_t error_check(void *ptr, const char *msg) {
@@ -192,6 +192,9 @@ struct Node_s *insert_marker(struct Node_s *current) {
     }
 
     // Find the middle node in the chunk
+    // data for the marker nodes under a sentinel are laid out type/range_count
+    // marker nodes are the only nodes with a !NULL above member so checking
+    // to make double check we stop at a marker.
     struct Node *mid_node = current->below;
     for (int i = 0;
          i <= get_size(current->below->data) / 2 && mid_node->above == NULL;
@@ -218,6 +221,7 @@ struct Node_s *insert_marker(struct Node_s *current) {
         splt_sz1 = get_size(current->below->data) / 2;
         splt_sz2 = splt_sz1 + 1;
     }
+    // Update our types and counts for our 2 new ranges
     current->below->data = set_params(current->below->data,
                                       get_type(current->below->data), splt_sz1);
     new_n->data =
@@ -249,7 +253,7 @@ struct Node_s *insert(struct Node_s *root, void *data) {
         return NULL;
     }
     // Handle if the range is full
-    if (get_size(current->below->data) > NODE_COUNT) {
+    if (get_size(current->below->data) >= NODE_COUNT) {
         current = insert_marker(current);
         if (!error_check(current, "Error insert(): insert_marker() failed\n")) {
             return NULL;
@@ -311,33 +315,17 @@ struct Node_s *insert(struct Node_s *root, void *data) {
 // Print our list. Each data pointer has embedded meta data so handle
 // accordingly -- Old needs updated
 void print_list(struct Node_s *root) {
-    if (root == NULL || root->type != HEAD_N) {
-        fprintf(stderr, "Error print_list() not a valid head\n");
+    if (!error_check(root, "Error print_list(): *root is NULL\n")) {
         return;
     }
-    struct Node *current = root->next;
-    while (current) {
-        if (current->data == NULL) {
-            fprintf(stderr, "Error: data == NULL");
+    struct Node *current = root->below->next;
+    while (get_type(current->next->data) != HEAD_N) {
+        if (!error_check(clear_params(current->data),
+                         "Error print_list(): data is NULL\n")) {
             return;
         }
         uint8_t type = get_type(current->data);
         uint16_t size = get_size(current->data);
-
-        switch (type) {
-            case STR_D:
-                printf("str: %.*s\n", size,
-                       (char *)clear_params(current->data));
-                break;
-
-            case INT_D:
-                printf("int: %i\n", *(int *)clear_params(current->data));
-                break;
-            default:
-                fprintf(stderr, "Invalid Type\n");
-                break;
-        }
-        current = current->next;
     }
 }
 
